@@ -17,7 +17,7 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
   while (!Serial) delay(10);
-  // watchDogTimerSetup();
+  watchDogTimerSetup();
 }
 void watchDogTimerSetup() {
     Serial.println("Watchdog Library Demo!");
@@ -51,7 +51,7 @@ void toggle(int n) {
 }
 void loop() {
     // Reset the watchdog timer
-    // Watchdog.reset();
+    Watchdog.reset();
     Serial.println("Working in the loop() !");
     delay(1000);
     // The watchdog timer will reset the device if it is not reset within 8 seconds
