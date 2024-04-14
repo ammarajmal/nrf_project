@@ -1,4 +1,4 @@
-#include "adxl355.h"
+#include "ADXL355.h"
 
 ADXL355::ADXL355(uint8_t csPin) : _csPin(csPin) {}
 
