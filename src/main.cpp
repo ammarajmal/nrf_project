@@ -97,7 +97,6 @@ extern void adxl362_init(int adxl_act_thresh, int adxl_act_interval);
 //LED
 NeoPixel_qr nRFBoard_neopixel;
 
-SDLib::File myFile;
 Adafruit_LittleFS_Namespace::File file(InternalFS);
 Adafruit_LittleFS lfs;
 //EPD
@@ -110,24 +109,47 @@ char resultString[200]; // Adjust the size based on the expected length of the m
 class RTCManager {
 private:
     RTC_DS3231 rtc;
+    char timestampBuffer[32];
+
 
 public:
     RTCManager() {}
-    char timestampBuffer[13];
 
     void initialize() {
-        Serial.print("Initializing RTC... ");
         if (!rtc.begin()) {
             Serial.println("Couldn't find RTC");
-            Serial.flush();
-            while (1) delay(10);
+            while (1) delay(10); // Hang if RTC not found
         }
-        Serial.println("RTC Initialized Successfully..!");
-        // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+        Serial.println("RTC Initialized Successfully");
+        setAlarmRTC1();  // Set the initial alarm
     }
 
-    
+    void setAlarmRTC() {
+        DateTime now = rtc.now();
+        // Set alarm to trigger at the start of the next minute
+        rtc.setAlarm2(DateTime(now.year(), now.month(), now.day(), now.hour(), now.minute() + 1), DS3231_A2_PerMinute);
+        rtc.clearAlarm(2);  // Clear any pending alarm
+    }
+    void setAlarmRTC1() {
+        DateTime now = rtc.now();
+        // Set alarm to trigger at the start of the next minute
+        rtc.setAlarm1(DateTime(now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second() + 10), DS3231_A1_Second);
+        rtc.clearAlarm(1);  // Clear any pending alarm
+    }
 
+    bool checkAlarm() {
+        return rtc.alarmFired(2);
+    }
+    bool checkAlarm1() {
+        return rtc.alarmFired(1);
+    }
+    void clearAlarm1() {
+        rtc.clearAlarm(1);
+    }
+
+    void clearAlarm() {
+        rtc.clearAlarm(2);
+    }
     const char* getCurrentTimestamp() {
         DateTime now = rtc.now();
 
@@ -137,16 +159,14 @@ public:
 
         return timestampBuffer; // Return the pointer to the timestampBuffer array
     }
-    void clearAlarmRTC(){
-        rtc.clearAlarm(1);
-        rtc.clearAlarm(2);
-        rtc.writeSqwPinMode(DS3231_OFF);
-        rtc.disable32K();
-        rtc.disableAlarm(2);
-    }
+
+
 };
 
 class SDFileManager {
+private:
+    SDLib::File myFile;
+
 public:
     SDFileManager() {}
 
@@ -162,21 +182,24 @@ public:
     }
 
     void writeData(const char* filename, const char* data) {
-        
-        Serial.println("Writing data to SD card");
         if (!SD.exists(filename)) {
             Serial.println("File does not exist. Creating file...");
             myFile = SD.open(filename, FILE_WRITE);
-            myFile.close();
-        }
-        else {
+        } else {
             Serial.println("File exists. Opening file for data writing...");
             myFile = SD.open(filename, FILE_WRITE);
+        }
+        if (myFile) {
             myFile.println(data);
+            myFile.flush();
             myFile.close();
+            Serial.print("File size after writing: "); Serial.println(myFile.size());
             Serial.println("Data written to SD card successfully.");
+        } else {
+            Serial.println("Failed to open file for writing.");
         }
     }
+
     void readData(const char* filename) {
         if (SD.exists(filename)) {
             Serial.println("Reading data from SD card");
@@ -456,45 +479,51 @@ public:
     }
 
     void run() {
-        /*
-        1. Initialze the littleFS and get the file ready for data saving.
-        2. Get the acceleration data from the ADXL355 sensor, in the form of tiltX, and tiltY.
-        3. Get the temperature data from the thermistor.
-        4. Get the time data from the RTC.
-        5. Construct the data string in the format: "TIMESTAMP, TILT_X, TILT_Y, TEMPERATURE".
-        6. Save the data to the SD card.
-        
+        if (rtcManager.checkAlarm1()) {
 
-        */
+            rtcManager.clearAlarm1();
+            // ledController.toggleLED(3);
+            /*
+            1. Initialze the littleFS and get the file ready for data saving.
+            2. Get the acceleration data from the ADXL355 sensor, in the form of tiltX, and tiltY.
+            3. Get the temperature data from the thermistor.
+            4. Get the time data from the RTC.
+            5. Construct the data string in the format: "TIMESTAMP, TILT_X, TILT_Y, TEMPERATURE".
+            6. Save the data to the SD card.
+            
 
-        //    2. Getting the acceleration data
-        float xMean = 0, yMean = 0, zMean = 0, tiltX = 0, tiltY = 0;
-        sensorManager.readAcceleration(xMean, yMean, zMean, tiltX, tiltY);
-        Serial.print("X Mean: "); Serial.print(xMean, 6);
-        Serial.print(" G, Y Mean: "); Serial.print(yMean, 6);
-        Serial.print(" G, Z Mean: "); Serial.print(zMean, 6); Serial.println(" G");
-        Serial.print("Tilt X: "); Serial.print(tiltX, 6); Serial.print(" degrees, Tilt Y: "); Serial.print(tiltY, 6); Serial.println(" degrees");
+            */
 
-        //    3. Getting the temperature data
-        float temperature = sensorManager.readTemperature();
-        Serial.print("Temperature: "); Serial.print(temperature, 6); Serial.println(" °C");
+            //    2. Getting the acceleration data
+            float xMean = 0, yMean = 0, zMean = 0, tiltX = 0, tiltY = 0;
+            sensorManager.readAcceleration(xMean, yMean, zMean, tiltX, tiltY);
+            Serial.print("X Mean: "); Serial.print(xMean, 6);
+            Serial.print(" G, Y Mean: "); Serial.print(yMean, 6);
+            Serial.print(" G, Z Mean: "); Serial.print(zMean, 6); Serial.println(" G");
+            Serial.print("Tilt X: "); Serial.print(tiltX, 6); Serial.print(" degrees, Tilt Y: "); Serial.print(tiltY, 6); Serial.println(" degrees");
 
-        //    4. Getting the time data
-        const char* formatedTimeStamp = rtcManager.getCurrentTimestamp();
-        Serial.print("Current Date & Time: "); Serial.println(formatedTimeStamp);
-        Serial.println("--------------------------------------------------");
+            //    3. Getting the temperature data
+            float temperature = sensorManager.readTemperature();
+            Serial.print("Temperature: "); Serial.print(temperature, 6); Serial.println(" °C");
 
-        //   5. Constructing the data string
-        int j = snprintf(dataString, sizeof(dataString),"%s,%.2f,%.2f,%.1f/", formatedTimeStamp, tiltX, tiltY, temperature);
-        Serial.println(dataString);
-        // Serial.print("Data String Length: "); Serial.print(j);  Serial.println(" bytes");
-        Serial.println("--------------------------------------------------");
+            //    4. Getting the time data
+            const char* formatedTimeStamp = rtcManager.getCurrentTimestamp();
+            Serial.print("Current Date & Time: "); Serial.println(formatedTimeStamp);
+            Serial.println("--------------------------------------------------");
 
-        //    6. Saving the data to the SD card and LittleFS
-        sdFileManager.writeData(SD_PATH, dataString);
-        sdFileManager.readData(SD_PATH);
+            //   5. Constructing the data string
+            int j = snprintf(dataString, sizeof(dataString),"%s,%.2f,%.2f,%.1f/", formatedTimeStamp, tiltX, tiltY, temperature);
+            Serial.println(dataString);
+            // Serial.print("Data String Length: "); Serial.print(j);  Serial.println(" bytes");
+            Serial.println("--------------------------------------------------");
 
+            //    6. Saving the data to the SD card and LittleFS
+            sdFileManager.writeData(SD_PATH, dataString);
+            sdFileManager.readData(SD_PATH);
+
+            rtcManager.setAlarmRTC1();
         }
+    }
 };
 
 // Create an instance of the main application class
@@ -515,6 +544,6 @@ void setup() {
 
 void loop() {
     qr_sensor_node2.run();
-    delay(10000);
+    delay(10);
 }
 
