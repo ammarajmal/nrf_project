@@ -193,6 +193,7 @@ public:
             myFile.println(data);
             myFile.flush();
             myFile.close();
+            delay(100);
             Serial.print("File size after writing: "); Serial.println(myFile.size());
             Serial.println("Data written to SD card successfully.");
         } else {
@@ -208,6 +209,7 @@ public:
                 Serial.write(myFile.read());
             }
             myFile.close();
+            delay(100);
             Serial.println("Data read from SD card successfully.");
         }
         else {
